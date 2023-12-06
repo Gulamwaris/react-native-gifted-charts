@@ -14,7 +14,6 @@ import {
   Dimensions,
   Platform,
   ColorValue,
-  I18nManager,
 } from 'react-native';
 import {styles} from './styles';
 import Svg, {
@@ -35,20 +34,10 @@ import {
   getAllArrowProperties,
   computeMaxAndMinItems,
   clone,
-  getCurvePathWithSegments,
-  getSegmentedPathObjects,
-  getSegmentString,
-  getRegionPathObjects,
-  getPathWithHighlight,
 } from '../utils';
 import {
   AxesAndRulesDefaults,
   LineDefaults,
-  RANGE_ENTER,
-  RANGE_EXIT,
-  SEGMENT_END,
-  SEGMENT_START,
-  STOP,
   chartTypes,
   defaultArrowConfig,
   defaultPointerConfig,
@@ -56,17 +45,12 @@ import {
 } from '../utils/constants';
 import BarAndLineChartsWrapper from '../Components/BarAndLineChartsWrapper';
 import {LineChartPropsType, itemType} from './types';
-import {
-  BarAndLineChartsWrapperTypes,
-  EdgePosition,
-  LineSvgProps,
-} from '../utils/types';
+import {BarAndLineChartsWrapperTypes} from '../utils/types';
 import {StripAndLabel} from '../Components/common/StripAndLabel';
 import {Pointer} from '../Components/common/Pointer';
 
 let initialData: Array<itemType> | null = null;
 let animations: Array<any> = [];
-
 export const LineChart = (props: LineChartPropsType) => {
   const scrollRef = props.scrollRef ?? useRef(null);
   const curvature = props.curvature ?? LineDefaults.curvature;
@@ -79,7 +63,7 @@ export const LineChart = (props: LineChartPropsType) => {
   const [arrow5Points, setArrow5Points] = useState('');
   const [secondaryArrowPoints, setSecondaryArrowPoints] = useState('');
   const [pointerIndex, setPointerIndex] = useState(-1);
-  const [pointerX, setPointerX] = useState(0);
+  const [pointerX, setPointerX] = useState(props.defaultPointX);
   const [pointerY, setPointerY] = useState(0);
   const [pointerItem, setPointerItem] = useState({
     pointerShiftX: 0,
@@ -124,11 +108,6 @@ export const LineChart = (props: LineChartPropsType) => {
   const [fillPoints4, setFillPoints4] = useState('');
   const [fillPoints5, setFillPoints5] = useState('');
   const [secondaryFillPoints, setSecondaryFillPoints] = useState('');
-
-  const [pointsFromSet, setPointsFromSet] = useState<string[]>([]);
-  const [fillPointsFromSet, setFillPointsFromSet] = useState<string[]>([]);
-  const [arrowPointsFromSet, setArrowPointsFromSet] = useState<string[]>([]);
-
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const noOfSections = props.noOfSections || 10;
   const containerHeight =
@@ -202,18 +181,6 @@ export const LineChart = (props: LineChartPropsType) => {
       props.secondaryYAxis,
     ) || [];
 
-  const dataSet = props.dataSet;
-  const data0 = useMemo(() => {
-    if (props.yAxisOffset) {
-      return dataSet?.[0]?.data;
-    } else {
-      return dataSet?.[0]?.data?.map(item => {
-        item.value = item.value - (props.yAxisOffset ?? 0);
-        return item;
-      });
-    }
-  }, [props.yAxisOffset, dataSet]);
-
   const scrollToEnd = props.scrollToEnd || LineDefaults.scrollToEnd;
   const scrollAnimation = props.scrollAnimation ?? LineDefaults.scrollAnimation;
   const scrollEventThrottle =
@@ -225,14 +192,8 @@ export const LineChart = (props: LineChartPropsType) => {
   const widthValue3 = useMemo(() => new Animated.Value(0), []);
   const widthValue4 = useMemo(() => new Animated.Value(0), []);
   const widthValue5 = useMemo(() => new Animated.Value(0), []);
-
-  const widthValuesFromSet = useMemo(
-    () => dataSet?.map(set => new Animated.Value(0)),
-    [],
-  );
-
   const labelsExtraHeight = props.labelsExtraHeight || 0;
-
+  
   const animationDuration =
     props.animationDuration || LineDefaults.animationDuration;
   const onDataChangeAnimationDuration =
@@ -265,16 +226,8 @@ export const LineChart = (props: LineChartPropsType) => {
   const startIndex5 = props.startIndex5 || 0;
   const endIndex5 = props.endIndex5 ?? data5.length - 1;
 
-  const lineSegments = props.lineSegments;
-  const lineSegments2 = props.lineSegments2;
-  const lineSegments3 = props.lineSegments3;
-  const lineSegments4 = props.lineSegments4;
-  const lineSegments5 = props.lineSegments5;
-
-  const highlightedRange = props.highlightedRange;
-
   if (!initialData) {
-    initialData = data0 ?? [...data];
+    initialData = [...data];
     animations = initialData.map(item => new Animated.Value(item.value));
   }
 
@@ -300,7 +253,7 @@ export const LineChart = (props: LineChartPropsType) => {
     props.spacing ??
     (adjustToWidth
       ? ((props.width ?? screenWidth - yAxisLabelWidth) - initialSpacing) /
-        ((data0 ?? data).length - 1)
+        (data.length - 1)
       : LineDefaults.spacing);
 
   const xAxisThickness =
@@ -418,22 +371,12 @@ export const LineChart = (props: LineChartPropsType) => {
   const areaChart5 = props.areaChart5 ?? false;
 
   const atLeastOneAreaChart =
-    dataSet?.some(set => set.areaChart) ||
     areaChart ||
     areaChart1 ||
     areaChart2 ||
     areaChart3 ||
     areaChart4 ||
     areaChart5;
-
-  const stepChart = props.stepChart ?? false;
-  const stepChart1 = props.stepChart1 ?? false;
-  const stepChart2 = props.stepChart2 ?? false;
-  const stepChart3 = props.stepChart3 ?? false;
-  const stepChart4 = props.stepChart4 ?? false;
-  const stepChart5 = props.stepChart5 ?? false;
-
-  const edgePosition = props.edgePosition ?? LineDefaults.edgePosition;
 
   const textFontSize1 =
     props.textFontSize1 ?? props.textFontSize ?? LineDefaults.textFontSize;
@@ -456,10 +399,10 @@ export const LineChart = (props: LineChartPropsType) => {
   const textColor5 =
     props.textColor5 ?? props.textColor ?? LineDefaults.textColor;
 
-  const totalWidth = initialSpacing + spacing * (data0 ?? data).length;
+  const totalWidth = initialSpacing + spacing * data.length;
 
   const {maxItem, minItem} = computeMaxAndMinItems(
-    data0 ?? data,
+    data,
     props.roundToDigits,
     props.showFractionalValues,
   );
@@ -492,11 +435,11 @@ export const LineChart = (props: LineChartPropsType) => {
         data[index].value = val.value;
         let pp = '',
           ppp = '';
-        if (!(dataSet?.[0].curved ?? props.curved)) {
-          for (let i = 0; i < (data0 ?? data).length; i++) {
-            pp += 'L' + getX(i) + ' ' + getY((data0 ?? data)[i].value) + ' ';
+        if (!props.curved) {
+          for (let i = 0; i < data.length; i++) {
+            pp += 'L' + getX(i) + ' ' + getY(data[i].value) + ' ';
           }
-          if (dataSet?.[0]?.areaChart ?? areaChart) {
+          if (areaChart) {
             ppp = 'L' + initialSpacing + ' ' + heightUptoXaxis + ' ';
             ppp += pp;
             ppp +=
@@ -531,14 +474,18 @@ export const LineChart = (props: LineChartPropsType) => {
       Animated.parallel(
         animations.map((anItem, index) =>
           Animated.timing(anItem, {
-            toValue: data[index]?.value ?? 0,
+            toValue: data[index]?.value ?? -11,
             useNativeDriver: Platform.OS === 'ios', // if useNativeDriver is set to true, animateOnDataChange feature fails for Android, so setting it true only for iOS
             duration: onDataChangeAnimationDuration,
+
           }),
         ),
       ).start();
     }
+
   }, [animateOnDataChange, data, onDataChangeAnimationDuration]);
+  
+  
 
   const labelsAppear = useCallback(() => {
     opacValue.setValue(0);
@@ -605,31 +552,9 @@ export const LineChart = (props: LineChartPropsType) => {
     }).start();
   }, [animationDuration, widthValue5]);
 
-  const decreaseWidthsFromSet = useCallback(() => {
-    dataSet?.map((set, index) => {
-      widthValuesFromSet?.[index]?.setValue(0);
-      if (widthValuesFromSet?.[index]) {
-        Animated.timing(widthValuesFromSet?.[index], {
-          toValue: 1,
-          duration: animationDuration,
-          easing: Easing.linear,
-          useNativeDriver: false,
-        }).start();
-      }
-    });
-  }, [animationDuration, widthValuesFromSet]);
-
   useEffect(() => {
     decreaseWidth();
     labelsAppear();
-    widthValuesFromSet?.forEach((item, index) => {
-      setTimeout(
-        () => {
-          decreaseWidthsFromSet?.[index]?.();
-        },
-        animateTogether ? 0 : animationDuration * index,
-      );
-    });
     setTimeout(
       () => {
         decreaseWidth2();
@@ -757,8 +682,8 @@ export const LineChart = (props: LineChartPropsType) => {
   const startOpacity5 = props.startOpacity5 ?? startOpacity;
   const endOpacity5 = props.endOpacity5 ?? endOpacity;
 
-  defaultArrowConfig.strokeWidth = dataSet?.[0]?.thickness ?? thickness1;
-  defaultArrowConfig.strokeColor = dataSet?.[0]?.color ?? color1;
+  defaultArrowConfig.strokeWidth = thickness1;
+  defaultArrowConfig.strokeColor = color1;
 
   const {
     arrowLength1,
@@ -791,12 +716,6 @@ export const LineChart = (props: LineChartPropsType) => {
     arrowStrokeColor5,
     arrowFillColor5,
     showArrowBase5,
-    arrowLengthsFromSet,
-    arrowWidthsFromSet,
-    arrowStrokeWidthsFromSet,
-    arrowStrokeColorsFromSet,
-    arrowFillColorsFromSet,
-    showArrowBasesFromSet,
   } = getAllArrowProperties(props, defaultArrowConfig);
 
   const secondaryLineConfig = {
@@ -868,659 +787,387 @@ export const LineChart = (props: LineChartPropsType) => {
       ' '
     );
   };
-
-  const getNextPoint = (data, index, around) => {
-    const isLast = index === data.length - 1;
-    return isLast && !around
-      ? ' '
-      : ' L' +
-          (getX(index) + (around ? (isLast ? 0 : spacing / 2) : spacing)) +
-          ' ' +
-          getY(data[index].value) +
-          ' ';
-  };
-  const getStepPath = (data, i) => {
-    const around = edgePosition === EdgePosition.AROUND_DATA_POINT;
-    return (
-      'L' +
-      (getX(i) - (around && i > 0 ? spacing / 2 : 0)) +
-      ' ' +
-      getY(data[i].value) +
-      getNextPoint(data, i, around)
-    );
-  };
-
-  const getSegmentPath = (data, i, lineSegment, startIndex, endIndex) => {
-    let path =
-      'L' +
-      getX(i) +
-      ' ' +
-      getY(data[i].value) +
-      ' ' +
-      getSegmentString(lineSegment, i, SEGMENT_START, SEGMENT_END);
-
-    if (highlightedRange) {
-      path += getPathWithHighlight(
-        data,
-        i,
-        highlightedRange,
-        startIndex,
-        endIndex,
-        getX,
-        getY,
-      );
-    }
-    return path;
-  };
-
   useEffect(() => {
-    if (dataSet) {
-      const pointsArray: string[] = [];
-      const arrowPointsArray: string[] = [];
-      const fillPointsArray: string[] = [];
-      dataSet.map((set, index) => {
-        const setData = set.data.map(item => {
-          item.value = item.value - (props.yAxisOffset ?? 0);
-          return item;
-        });
-        if (set.curved ?? props.curved) {
-          const pArray: Array<Array<number>> = [];
-          for (let i = 0; i < setData.length; i++) {
-            if (
-              i >= (set.startIndex ?? 0) &&
-              i <= (set.endIndex ?? set.data.length - 1)
-            ) {
-              pArray.push([getX(i), getY(setData[i].value)]);
-            }
-          }
-          let xx = svgPath(
-            pArray,
-            set.curveType ?? curveType,
-            set.curvature ?? curvature,
-          );
-          pointsArray.push(
-            getCurvePathWithSegments(
-              xx,
-              set.lineSegments,
-              SEGMENT_START,
-              SEGMENT_END,
-            ),
-          );
-
-          // For Arrow-
-          if (setData.length > 1 && (set.showArrow ?? props.showArrows)) {
-            let arrowTipY = pArray[pArray.length - 1][1];
-            let arrowTipX = pArray[pArray.length - 1][0];
-            let y1 = pArray[pArray.length - 2][1];
-            let x1 = pArray[pArray.length - 2][0];
-
-            let arrowPoints = getArrowPoints(
-              arrowTipX,
-              arrowTipY,
-              x1,
-              y1,
-              arrowLengthsFromSet[index],
-              arrowWidthsFromSet[index],
-              showArrowBasesFromSet[index],
-            );
-
-            arrowPointsArray.push(arrowPoints);
-          }
-
-          // For Area charts-
-          if ((set.areaChart || areaChart) && setData.length) {
-            xx = addLeadingAndTrailingPathForAreaFill(
-              xx,
-              setData[0].value,
-              setData.length,
-            );
-            fillPointsArray.push(xx);
-          }
-        } else {
-          let pp = '';
-          for (let i = 0; i < setData.length; i++) {
-            if (
-              i >= (set.startIndex ?? 0) &&
-              i <= (set.endIndex ?? set.data.length - 1)
-            ) {
-              if (set.stepChart || stepChart) {
-                pp += getStepPath(setData, i);
-              } else {
-                pp += getSegmentPath(
-                  setData,
-                  i,
-                  set.lineSegments,
-                  set.startIndex ?? 0,
-                  set.endIndex ?? set.data.length - 1,
-                );
-              }
-            }
-          }
-          pointsArray.push(pp.replace('L', 'M'));
-
-          // For Arrow-
-          if (setData.length > 1 && (set.showArrow ?? props.showArrows)) {
-            let ppArray = pp.trim().split(' ');
-            let arrowTipY = parseInt(ppArray[ppArray.length - 1]);
-            let arrowTipX = parseInt(
-              ppArray[ppArray.length - 2].replace('L', ''),
-            );
-            let y1 = parseInt(ppArray[ppArray.length - 3]);
-            let x1 = parseInt(ppArray[ppArray.length - 4].replace('L', ''));
-
-            let arrowPoints = getArrowPoints(
-              arrowTipX,
-              arrowTipY,
-              x1,
-              y1,
-              arrowLengthsFromSet[index],
-              arrowWidthsFromSet[index],
-              showArrowBasesFromSet[index],
-            );
-
-            arrowPointsArray.push(arrowPoints);
-          }
-
-          // For Area charts-
-          if ((set.areaChart || areaChart) && setData.length) {
-            let ppp = 'L' + initialSpacing + ' ' + heightUptoXaxis + ' ';
-            ppp += pp;
-            ppp +=
-              'L' +
-              (initialSpacing + spacing * (setData.length - 1)) +
-              ' ' +
-              heightUptoXaxis;
-            ppp += 'L' + initialSpacing + ' ' + heightUptoXaxis + ' ';
-            fillPointsArray.push(ppp.replace('L', 'M'));
-          }
+    let pp = '',
+      pp2 = '',
+      pp3 = '',
+      pp4 = '',
+      pp5 = '';
+    if (!props.curved) {
+      for (let i = 0; i < data.length; i++) {
+        if (i >= startIndex1 && i <= endIndex1 && !animateOnDataChange) {
+          pp += 'L' + getX(i) + ' ' + getY(data[i].value) + ' ';
         }
-      });
-
-      setPointsFromSet(pointsArray);
-      setArrowPointsFromSet(arrowPointsArray);
-      setFillPointsFromSet(fillPointsArray);
-    } else {
-      let pp = '',
-        pp2 = '',
-        pp3 = '',
-        pp4 = '',
-        pp5 = '';
-      if (!props.curved) {
-        for (let i = 0; i < data.length; i++) {
-          if (i >= startIndex1 && i <= endIndex1 && !animateOnDataChange) {
-            if (stepChart || stepChart1) {
-              pp += getStepPath(data, i);
-            } else {
-              pp += getSegmentPath(
-                data,
-                i,
-                lineSegments,
-                startIndex1,
-                endIndex1,
-              );
-            }
-          }
-          if (data2.length && i >= startIndex2 && i <= endIndex2) {
-            if (stepChart || stepChart2) {
-              pp2 += getStepPath(data2, i);
-              (' ');
-            } else {
-              pp2 += getSegmentPath(
-                data2,
-                i,
-                lineSegments2,
-                startIndex2,
-                endIndex2,
-              );
-            }
-          }
-          if (data3.length && i >= startIndex3 && i <= endIndex3) {
-            if (stepChart || stepChart3) {
-              pp3 += getStepPath(data3, i);
-            } else {
-              pp3 += getSegmentPath(
-                data2,
-                i,
-                lineSegments2,
-                startIndex3,
-                endIndex3,
-              );
-            }
-          }
-          if (data4.length && i >= startIndex4 && i <= endIndex4) {
-            if (stepChart || stepChart4) {
-              pp4 += getStepPath(data4, i);
-            } else {
-              pp4 += getSegmentPath(
-                data4,
-                i,
-                lineSegments4,
-                startIndex4,
-                endIndex4,
-              );
-            }
-          }
-          if (data5.length && i >= startIndex5 && i <= endIndex5) {
-            if (stepChart || stepChart5) {
-              pp5 += getStepPath(data5, i);
-            } else {
-              pp5 += getSegmentPath(
-                data5,
-                i,
-                lineSegments5,
-                startIndex5,
-                endIndex4,
-              );
-            }
-          }
+        if (data2.length && i >= startIndex2 && i <= endIndex2) {
+          pp2 += 'L' + getX(i) + ' ' + getY(data2[i].value) + ' ';
         }
-        setPoints2(pp2.replace('L', 'M'));
-        setPoints3(pp3.replace('L', 'M'));
-        setPoints4(pp4.replace('L', 'M'));
-        setPoints5(pp5.replace('L', 'M'));
-
-        setPoints(pp.replace('L', 'M'));
-
-        if (data.length > 1 && (props.showArrow1 || props.showArrows)) {
-          let ppArray = pp.trim().split(' ');
-          let arrowTipY = parseInt(ppArray[ppArray.length - 1]);
-          let arrowTipX = parseInt(
-            ppArray[ppArray.length - 2].replace('L', ''),
-          );
-          let y1 = parseInt(ppArray[ppArray.length - 3]);
-          let x1 = parseInt(ppArray[ppArray.length - 4].replace('L', ''));
-
-          let arrowPoints = getArrowPoints(
-            arrowTipX,
-            arrowTipY,
-            x1,
-            y1,
-            arrowLength1,
-            arrowWidth1,
-            showArrowBase1,
-          );
-
-          setArrow1Points(arrowPoints);
+        if (data3.length && i >= startIndex3 && i <= endIndex3) {
+          pp3 += 'L' + getX(i) + ' ' + getY(data3[i].value) + ' ';
         }
-
-        if (data2.length > 1 && (props.showArrow2 || props.showArrows)) {
-          let ppArray = pp2.trim().split(' ');
-          let arrowTipY = parseInt(ppArray[ppArray.length - 1]);
-          let arrowTipX = parseInt(
-            ppArray[ppArray.length - 2].replace('L', ''),
-          );
-          let y1 = parseInt(ppArray[ppArray.length - 3]);
-          let x1 = parseInt(ppArray[ppArray.length - 4].replace('L', ''));
-
-          let arrowPoints = getArrowPoints(
-            arrowTipX,
-            arrowTipY,
-            x1,
-            y1,
-            arrowLength2,
-            arrowWidth2,
-            showArrowBase2,
-          );
-
-          setArrow2Points(arrowPoints);
+        if (data4.length && i >= startIndex4 && i <= endIndex4) {
+          pp4 += 'L' + getX(i) + ' ' + getY(data4[i].value) + ' ';
         }
-
-        if (data3.length > 1 && (props.showArrow3 || props.showArrows)) {
-          let ppArray = pp3.trim().split(' ');
-          let arrowTipY = parseInt(ppArray[ppArray.length - 1]);
-          let arrowTipX = parseInt(
-            ppArray[ppArray.length - 2].replace('L', ''),
-          );
-          let y1 = parseInt(ppArray[ppArray.length - 3]);
-          let x1 = parseInt(ppArray[ppArray.length - 4].replace('L', ''));
-
-          let arrowPoints = getArrowPoints(
-            arrowTipX,
-            arrowTipY,
-            x1,
-            y1,
-            arrowLength3,
-            arrowWidth3,
-            showArrowBase3,
-          );
-
-          setArrow3Points(arrowPoints);
+        if (data5.length && i >= startIndex5 && i <= endIndex5) {
+          pp5 += 'L' + getX(i) + ' ' + getY(data5[i].value) + ' ';
         }
-
-        if (data4.length > 1 && (props.showArrow4 || props.showArrows)) {
-          let ppArray = pp4.trim().split(' ');
-          let arrowTipY = parseInt(ppArray[ppArray.length - 1]);
-          let arrowTipX = parseInt(
-            ppArray[ppArray.length - 2].replace('L', ''),
-          );
-          let y1 = parseInt(ppArray[ppArray.length - 3]);
-          let x1 = parseInt(ppArray[ppArray.length - 4].replace('L', ''));
-
-          let arrowPoints = getArrowPoints(
-            arrowTipX,
-            arrowTipY,
-            x1,
-            y1,
-            arrowLength4,
-            arrowWidth4,
-            showArrowBase4,
-          );
-
-          setArrow4Points(arrowPoints);
-        }
-
-        if (data5.length > 1 && (props.showArrow5 || props.showArrows)) {
-          let ppArray = pp5.trim().split(' ');
-          let arrowTipY = parseInt(ppArray[ppArray.length - 1]);
-          let arrowTipX = parseInt(
-            ppArray[ppArray.length - 2].replace('L', ''),
-          );
-          let y1 = parseInt(ppArray[ppArray.length - 3]);
-          let x1 = parseInt(ppArray[ppArray.length - 4].replace('L', ''));
-
-          let arrowPoints = getArrowPoints(
-            arrowTipX,
-            arrowTipY,
-            x1,
-            y1,
-            arrowLength5,
-            arrowWidth5,
-            showArrowBase5,
-          );
-
-          setArrow5Points(arrowPoints);
-        }
-
-        /***************************          For Area Charts          *************************/
-        if (atLeastOneAreaChart) {
-          let ppp = '',
-            ppp2 = '',
-            ppp3 = '',
-            ppp4 = '',
-            ppp5 = '';
-
-          if (
-            (areaChart || areaChart1) &&
-            data.length &&
-            !animateOnDataChange
-          ) {
-            ppp = 'L' + initialSpacing + ' ' + heightUptoXaxis + ' ';
-            ppp += pp;
-            ppp +=
-              'L' +
-              (initialSpacing + spacing * (data.length - 1)) +
-              ' ' +
-              heightUptoXaxis;
-            ppp += 'L' + initialSpacing + ' ' + heightUptoXaxis + ' ';
-            setFillPoints(ppp.replace('L', 'M'));
-          }
-
-          if ((areaChart || areaChart2) && data2.length) {
-            ppp2 = 'L' + initialSpacing + ' ' + heightUptoXaxis + ' ';
-            ppp2 += pp2;
-            ppp2 +=
-              'L' +
-              (initialSpacing + spacing * (data.length - 1)) +
-              ' ' +
-              heightUptoXaxis;
-            ppp2 += 'L' + initialSpacing + ' ' + heightUptoXaxis + ' ';
-            setFillPoints2(ppp2.replace('L', 'M'));
-          }
-
-          if ((areaChart || areaChart3) && data3.length) {
-            ppp3 = 'L' + initialSpacing + ' ' + heightUptoXaxis + ' ';
-            ppp3 += pp3;
-            ppp3 +=
-              'L' +
-              (initialSpacing + spacing * (data.length - 1)) +
-              ' ' +
-              heightUptoXaxis;
-            ppp3 += 'L' + initialSpacing + ' ' + heightUptoXaxis + ' ';
-            setFillPoints3(ppp3.replace('L', 'M'));
-          }
-          if ((areaChart || areaChart4) && data4.length) {
-            ppp4 = 'L' + initialSpacing + ' ' + heightUptoXaxis + ' ';
-            ppp4 += pp4;
-            ppp4 +=
-              'L' +
-              (initialSpacing + spacing * (data.length - 1)) +
-              ' ' +
-              heightUptoXaxis;
-            ppp4 += 'L' + initialSpacing + ' ' + heightUptoXaxis + ' ';
-            setFillPoints4(ppp4.replace('L', 'M'));
-          }
-
-          if ((areaChart || areaChart5) && data5.length) {
-            ppp5 = 'L' + initialSpacing + ' ' + heightUptoXaxis + ' ';
-            ppp5 += pp5;
-            ppp5 +=
-              'L' +
-              (initialSpacing + spacing * (data.length - 1)) +
-              ' ' +
-              heightUptoXaxis;
-            ppp5 += 'L' + initialSpacing + ' ' + heightUptoXaxis + ' ';
-            setFillPoints5(ppp5.replace('L', 'M'));
-          }
-        }
-
-        /*************************************************************************************/
-      } else {
-        const p1Array: Array<Array<number>> = [],
-          p2Array: Array<Array<number>> = [],
-          p3Array: Array<Array<number>> = [],
-          p4Array: Array<Array<number>> = [],
-          p5Array: Array<Array<number>> = [];
-        for (let i = 0; i < data.length; i++) {
-          if (i >= startIndex1 && i <= endIndex1) {
-            p1Array.push([getX(i), getY(data[i].value)]);
-          }
-          if (data2.length && i >= startIndex2 && i <= endIndex2) {
-            p2Array.push([getX(i), getY(data2[i].value)]);
-          }
-          if (data3.length && i >= startIndex3 && i <= endIndex3) {
-            p3Array.push([getX(i), getY(data3[i].value)]);
-          }
-          if (data4.length && i >= startIndex4 && i <= endIndex4) {
-            p4Array.push([getX(i), getY(data4[i].value)]);
-          }
-          if (data5.length && i >= startIndex5 && i <= endIndex5) {
-            p5Array.push([getX(i), getY(data5[i].value)]);
-          }
-        }
-
-        let xx = svgPath(p1Array, curveType, curvature);
-        let xx2 = svgPath(p2Array, curveType, curvature);
-        let xx3 = svgPath(p3Array, curveType, curvature);
-        let xx4 = svgPath(p4Array, curveType, curvature);
-        let xx5 = svgPath(p5Array, curveType, curvature);
-
-        setPoints(
-          getCurvePathWithSegments(
-            xx,
-            lineSegments,
-            SEGMENT_START,
-            SEGMENT_END,
-          ),
-        );
-        setPoints2(
-          getCurvePathWithSegments(
-            xx2,
-            lineSegments2,
-            SEGMENT_START,
-            SEGMENT_END,
-          ),
-        );
-        setPoints3(
-          getCurvePathWithSegments(
-            xx3,
-            lineSegments3,
-            SEGMENT_START,
-            SEGMENT_END,
-          ),
-        );
-        setPoints4(
-          getCurvePathWithSegments(
-            xx4,
-            lineSegments4,
-            SEGMENT_START,
-            SEGMENT_END,
-          ),
-        );
-        setPoints5(
-          getCurvePathWithSegments(
-            xx5,
-            lineSegments5,
-            SEGMENT_START,
-            SEGMENT_END,
-          ),
-        );
-
-        if (data.length > 1 && (props.showArrow1 || props.showArrows)) {
-          let arrowTipY = p1Array[p1Array.length - 1][1];
-          let arrowTipX = p1Array[p1Array.length - 1][0];
-          let y1 = p1Array[p1Array.length - 2][1];
-          let x1 = p1Array[p1Array.length - 2][0];
-
-          let arrowPoints = getArrowPoints(
-            arrowTipX,
-            arrowTipY,
-            x1,
-            y1,
-            arrowLength1,
-            arrowWidth1,
-            showArrowBase1,
-          );
-
-          setArrow1Points(arrowPoints);
-        }
-
-        if (data2.length > 1 && (props.showArrow2 || props.showArrows)) {
-          let arrowTipY = p2Array[p2Array.length - 1][1];
-          let arrowTipX = p2Array[p2Array.length - 1][0];
-          let y1 = p2Array[p2Array.length - 2][1];
-          let x1 = p2Array[p2Array.length - 2][0];
-
-          let arrowPoints = getArrowPoints(
-            arrowTipX,
-            arrowTipY,
-            x1,
-            y1,
-            arrowLength2,
-            arrowWidth2,
-            showArrowBase2,
-          );
-
-          setArrow2Points(arrowPoints);
-        }
-
-        if (data3.length > 1 && (props.showArrow3 || props.showArrows)) {
-          let arrowTipY = p3Array[p3Array.length - 1][1];
-          let arrowTipX = p3Array[p3Array.length - 1][0];
-          let y1 = p3Array[p3Array.length - 2][1];
-          let x1 = p3Array[p3Array.length - 2][0];
-
-          let arrowPoints = getArrowPoints(
-            arrowTipX,
-            arrowTipY,
-            x1,
-            y1,
-            arrowLength3,
-            arrowWidth3,
-            showArrowBase3,
-          );
-
-          setArrow2Points(arrowPoints);
-        }
-
-        if (data4.length > 1 && (props.showArrow4 || props.showArrows)) {
-          let arrowTipY = p4Array[p4Array.length - 1][1];
-          let arrowTipX = p4Array[p4Array.length - 1][0];
-          let y1 = p4Array[p4Array.length - 2][1];
-          let x1 = p4Array[p4Array.length - 2][0];
-
-          let arrowPoints = getArrowPoints(
-            arrowTipX,
-            arrowTipY,
-            x1,
-            y1,
-            arrowLength4,
-            arrowWidth4,
-            showArrowBase4,
-          );
-
-          setArrow2Points(arrowPoints);
-        }
-
-        if (data5.length > 1 && (props.showArrow5 || props.showArrows)) {
-          let arrowTipY = p5Array[p5Array.length - 1][1];
-          let arrowTipX = p5Array[p5Array.length - 1][0];
-          let y1 = p5Array[p5Array.length - 2][1];
-          let x1 = p5Array[p5Array.length - 2][0];
-
-          let arrowPoints = getArrowPoints(
-            arrowTipX,
-            arrowTipY,
-            x1,
-            y1,
-            arrowLength5,
-            arrowWidth5,
-            showArrowBase5,
-          );
-
-          setArrow2Points(arrowPoints);
-        }
-
-        /***************************          For Area Charts          *************************/
-
-        if (atLeastOneAreaChart) {
-          if ((areaChart || areaChart1) && data.length) {
-            xx = addLeadingAndTrailingPathForAreaFill(
-              xx,
-              data[0].value,
-              data.length,
-            );
-            setFillPoints(xx);
-          }
-
-          if ((areaChart || areaChart2) && data2.length) {
-            xx2 = addLeadingAndTrailingPathForAreaFill(
-              xx2,
-              data2[0].value,
-              data2.length,
-            );
-            setFillPoints2(xx2);
-          }
-
-          if ((areaChart || areaChart3) && data3.length) {
-            xx3 = addLeadingAndTrailingPathForAreaFill(
-              xx3,
-              data3[0].value,
-              data3.length,
-            );
-            setFillPoints3(xx3);
-          }
-
-          if ((areaChart || areaChart4) && data4.length) {
-            xx4 = addLeadingAndTrailingPathForAreaFill(
-              xx4,
-              data4[0].value,
-              data4.length,
-            );
-            setFillPoints4(xx4);
-          }
-
-          if ((areaChart || areaChart5) && data5.length) {
-            xx5 = addLeadingAndTrailingPathForAreaFill(
-              xx5,
-              data5[0].value,
-              data5.length,
-            );
-            setFillPoints5(xx5);
-          }
-        }
-
-        /*************************************************************************************/
       }
+      setPoints2(pp2.replace('L', 'M'));
+      setPoints3(pp3.replace('L', 'M'));
+      setPoints4(pp4.replace('L', 'M'));
+      setPoints5(pp5.replace('L', 'M'));
+
+      setPoints(pp.replace('L', 'M'));
+
+      if (data.length > 1 && (props.showArrow1 || props.showArrows)) {
+        let ppArray = pp.trim().split(' ');
+        let arrowTipY = parseInt(ppArray[ppArray.length - 1]);
+        let arrowTipX = parseInt(ppArray[ppArray.length - 2].replace('L', ''));
+        let y1 = parseInt(ppArray[ppArray.length - 3]);
+        let x1 = parseInt(ppArray[ppArray.length - 4].replace('L', ''));
+
+        let arrowPoints = getArrowPoints(
+          arrowTipX,
+          arrowTipY,
+          x1,
+          y1,
+          arrowLength1,
+          arrowWidth1,
+          showArrowBase1,
+        );
+
+        setArrow1Points(arrowPoints);
+      }
+
+      if (data2.length > 1 && (props.showArrow2 || props.showArrows)) {
+        let ppArray = pp2.trim().split(' ');
+        let arrowTipY = parseInt(ppArray[ppArray.length - 1]);
+        let arrowTipX = parseInt(ppArray[ppArray.length - 2].replace('L', ''));
+        let y1 = parseInt(ppArray[ppArray.length - 3]);
+        let x1 = parseInt(ppArray[ppArray.length - 4].replace('L', ''));
+
+        let arrowPoints = getArrowPoints(
+          arrowTipX,
+          arrowTipY,
+          x1,
+          y1,
+          arrowLength2,
+          arrowWidth2,
+          showArrowBase2,
+        );
+
+        setArrow2Points(arrowPoints);
+      }
+
+      if (data3.length > 1 && (props.showArrow3 || props.showArrows)) {
+        let ppArray = pp3.trim().split(' ');
+        let arrowTipY = parseInt(ppArray[ppArray.length - 1]);
+        let arrowTipX = parseInt(ppArray[ppArray.length - 2].replace('L', ''));
+        let y1 = parseInt(ppArray[ppArray.length - 3]);
+        let x1 = parseInt(ppArray[ppArray.length - 4].replace('L', ''));
+
+        let arrowPoints = getArrowPoints(
+          arrowTipX,
+          arrowTipY,
+          x1,
+          y1,
+          arrowLength3,
+          arrowWidth3,
+          showArrowBase3,
+        );
+
+        setArrow3Points(arrowPoints);
+      }
+
+      if (data4.length > 1 && (props.showArrow4 || props.showArrows)) {
+        let ppArray = pp4.trim().split(' ');
+        let arrowTipY = parseInt(ppArray[ppArray.length - 1]);
+        let arrowTipX = parseInt(ppArray[ppArray.length - 2].replace('L', ''));
+        let y1 = parseInt(ppArray[ppArray.length - 3]);
+        let x1 = parseInt(ppArray[ppArray.length - 4].replace('L', ''));
+
+        let arrowPoints = getArrowPoints(
+          arrowTipX,
+          arrowTipY,
+          x1,
+          y1,
+          arrowLength4,
+          arrowWidth4,
+          showArrowBase4,
+        );
+
+        setArrow4Points(arrowPoints);
+      }
+
+      if (data5.length > 1 && (props.showArrow5 || props.showArrows)) {
+        let ppArray = pp5.trim().split(' ');
+        let arrowTipY = parseInt(ppArray[ppArray.length - 1]);
+        let arrowTipX = parseInt(ppArray[ppArray.length - 2].replace('L', ''));
+        let y1 = parseInt(ppArray[ppArray.length - 3]);
+        let x1 = parseInt(ppArray[ppArray.length - 4].replace('L', ''));
+
+        let arrowPoints = getArrowPoints(
+          arrowTipX,
+          arrowTipY,
+          x1,
+          y1,
+          arrowLength5,
+          arrowWidth5,
+          showArrowBase5,
+        );
+
+        setArrow5Points(arrowPoints);
+      }
+
+      /***************************          For Area Charts          *************************/
+      if (atLeastOneAreaChart) {
+        let ppp = '',
+          ppp2 = '',
+          ppp3 = '',
+          ppp4 = '',
+          ppp5 = '';
+
+        if ((areaChart || areaChart1) && data.length && !animateOnDataChange) {
+          ppp = 'L' + initialSpacing + ' ' + heightUptoXaxis + ' ';
+          ppp += pp;
+          ppp +=
+            'L' +
+            (initialSpacing + spacing * (data.length - 1)) +
+            ' ' +
+            heightUptoXaxis;
+          ppp += 'L' + initialSpacing + ' ' + heightUptoXaxis + ' ';
+          setFillPoints(ppp.replace('L', 'M'));
+        }
+
+        if ((areaChart || areaChart2) && data2.length) {
+          ppp2 = 'L' + initialSpacing + ' ' + heightUptoXaxis + ' ';
+          ppp2 += pp2;
+          ppp2 +=
+            'L' +
+            (initialSpacing + spacing * (data.length - 1)) +
+            ' ' +
+            heightUptoXaxis;
+          ppp2 += 'L' + initialSpacing + ' ' + heightUptoXaxis + ' ';
+          setFillPoints2(ppp2.replace('L', 'M'));
+        }
+
+        if ((areaChart || areaChart3) && data3.length) {
+          ppp3 = 'L' + initialSpacing + ' ' + heightUptoXaxis + ' ';
+          ppp3 += pp3;
+          ppp3 +=
+            'L' +
+            (initialSpacing + spacing * (data.length - 1)) +
+            ' ' +
+            heightUptoXaxis;
+          ppp3 += 'L' + initialSpacing + ' ' + heightUptoXaxis + ' ';
+          setFillPoints3(ppp3.replace('L', 'M'));
+        }
+        if ((areaChart || areaChart4) && data4.length) {
+          ppp4 = 'L' + initialSpacing + ' ' + heightUptoXaxis + ' ';
+          ppp4 += pp4;
+          ppp4 +=
+            'L' +
+            (initialSpacing + spacing * (data.length - 1)) +
+            ' ' +
+            heightUptoXaxis;
+          ppp4 += 'L' + initialSpacing + ' ' + heightUptoXaxis + ' ';
+          setFillPoints4(ppp4.replace('L', 'M'));
+        }
+
+        if ((areaChart || areaChart5) && data5.length) {
+          ppp5 = 'L' + initialSpacing + ' ' + heightUptoXaxis + ' ';
+          ppp5 += pp5;
+          ppp5 +=
+            'L' +
+            (initialSpacing + spacing * (data.length - 1)) +
+            ' ' +
+            heightUptoXaxis;
+          ppp5 += 'L' + initialSpacing + ' ' + heightUptoXaxis + ' ';
+          setFillPoints5(ppp5.replace('L', 'M'));
+        }
+      }
+
+      /*************************************************************************************/
+    } else {
+      const p1Array: Array<Array<number>> = [],
+        p2Array: Array<Array<number>> = [],
+        p3Array: Array<Array<number>> = [],
+        p4Array: Array<Array<number>> = [],
+        p5Array: Array<Array<number>> = [];
+      for (let i = 0; i < data.length; i++) {
+        if (i >= startIndex1 && i <= endIndex1) {
+          p1Array.push([getX(i), getY(data[i].value)]);
+        }
+        if (data2.length && i >= startIndex2 && i <= endIndex2) {
+          p2Array.push([getX(i), getY(data2[i].value)]);
+        }
+        if (data3.length && i >= startIndex3 && i <= endIndex3) {
+          p3Array.push([getX(i), getY(data3[i].value)]);
+        }
+        if (data4.length && i >= startIndex4 && i <= endIndex4) {
+          p4Array.push([getX(i), getY(data4[i].value)]);
+        }
+        if (data5.length && i >= startIndex5 && i <= endIndex5) {
+          p5Array.push([getX(i), getY(data5[i].value)]);
+        }
+      }
+
+      let xx = svgPath(p1Array, curveType, curvature);
+      let xx2 = svgPath(p2Array, curveType, curvature);
+      let xx3 = svgPath(p3Array, curveType, curvature);
+      let xx4 = svgPath(p4Array, curveType, curvature);
+      let xx5 = svgPath(p5Array, curveType, curvature);
+
+      setPoints(xx);
+      setPoints2(xx2);
+      setPoints3(xx3);
+      setPoints4(xx4);
+      setPoints5(xx5);
+
+      if (data.length > 1 && (props.showArrow1 || props.showArrows)) {
+        let arrowTipY = p1Array[p1Array.length - 1][1];
+        let arrowTipX = p1Array[p1Array.length - 1][0];
+        let y1 = p1Array[p1Array.length - 2][1];
+        let x1 = p1Array[p1Array.length - 2][0];
+
+        let arrowPoints = getArrowPoints(
+          arrowTipX,
+          arrowTipY,
+          x1,
+          y1,
+          arrowLength1,
+          arrowWidth1,
+          showArrowBase1,
+        );
+
+        setArrow1Points(arrowPoints);
+      }
+
+      if (data2.length > 1 && (props.showArrow2 || props.showArrows)) {
+        let arrowTipY = p2Array[p2Array.length - 1][1];
+        let arrowTipX = p2Array[p2Array.length - 1][0];
+        let y1 = p2Array[p2Array.length - 2][1];
+        let x1 = p2Array[p2Array.length - 2][0];
+
+        let arrowPoints = getArrowPoints(
+          arrowTipX,
+          arrowTipY,
+          x1,
+          y1,
+          arrowLength2,
+          arrowWidth2,
+          showArrowBase2,
+        );
+
+        setArrow2Points(arrowPoints);
+      }
+
+      if (data3.length > 1 && (props.showArrow3 || props.showArrows)) {
+        let arrowTipY = p3Array[p3Array.length - 1][1];
+        let arrowTipX = p3Array[p3Array.length - 1][0];
+        let y1 = p3Array[p3Array.length - 2][1];
+        let x1 = p3Array[p3Array.length - 2][0];
+
+        let arrowPoints = getArrowPoints(
+          arrowTipX,
+          arrowTipY,
+          x1,
+          y1,
+          arrowLength3,
+          arrowWidth3,
+          showArrowBase3,
+        );
+
+        setArrow2Points(arrowPoints);
+      }
+
+      if (data4.length > 1 && (props.showArrow4 || props.showArrows)) {
+        let arrowTipY = p4Array[p4Array.length - 1][1];
+        let arrowTipX = p4Array[p4Array.length - 1][0];
+        let y1 = p4Array[p4Array.length - 2][1];
+        let x1 = p4Array[p4Array.length - 2][0];
+
+        let arrowPoints = getArrowPoints(
+          arrowTipX,
+          arrowTipY,
+          x1,
+          y1,
+          arrowLength4,
+          arrowWidth4,
+          showArrowBase4,
+        );
+
+        setArrow2Points(arrowPoints);
+      }
+
+      if (data5.length > 1 && (props.showArrow5 || props.showArrows)) {
+        let arrowTipY = p5Array[p5Array.length - 1][1];
+        let arrowTipX = p5Array[p5Array.length - 1][0];
+        let y1 = p5Array[p5Array.length - 2][1];
+        let x1 = p5Array[p5Array.length - 2][0];
+
+        let arrowPoints = getArrowPoints(
+          arrowTipX,
+          arrowTipY,
+          x1,
+          y1,
+          arrowLength5,
+          arrowWidth5,
+          showArrowBase5,
+        );
+
+        setArrow2Points(arrowPoints);
+      }
+
+      /***************************          For Area Charts          *************************/
+
+      if (atLeastOneAreaChart) {
+        if ((areaChart || areaChart1) && data.length) {
+          xx = addLeadingAndTrailingPathForAreaFill(
+            xx,
+            data[0].value,
+            data.length,
+          );
+          setFillPoints(xx);
+        }
+
+        if ((areaChart || areaChart2) && data2.length) {
+          xx2 = addLeadingAndTrailingPathForAreaFill(
+            xx2,
+            data2[0].value,
+            data2.length,
+          );
+          setFillPoints2(xx2);
+        }
+
+        if ((areaChart || areaChart3) && data3.length) {
+          xx3 = addLeadingAndTrailingPathForAreaFill(
+            xx3,
+            data3[0].value,
+            data3.length,
+          );
+          setFillPoints3(xx3);
+        }
+
+        if ((areaChart || areaChart4) && data4.length) {
+          xx4 = addLeadingAndTrailingPathForAreaFill(
+            xx4,
+            data4[0].value,
+            data4.length,
+          );
+          setFillPoints4(xx4);
+        }
+
+        if ((areaChart || areaChart5) && data5.length) {
+          xx5 = addLeadingAndTrailingPathForAreaFill(
+            xx5,
+            data5[0].value,
+            data5.length,
+          );
+          setFillPoints5(xx5);
+        }
+      }
+
+      /*************************************************************************************/
     }
   }, [
     animateOnDataChange,
@@ -1533,7 +1180,6 @@ export const LineChart = (props: LineChartPropsType) => {
     data3,
     data4,
     data5,
-    // data0,
     dataPointsWidth1,
     dataPointsWidth2,
     dataPointsWidth3,
@@ -1683,6 +1329,11 @@ export const LineChart = (props: LineChartPropsType) => {
     }
   }, [secondaryData, secondaryLineConfig]);
 
+  // useEffect(()=>{
+  //    setPointerX(24)
+
+  // },[])
+
   const gradientDirection = props.gradientDirection ?? 'vertical';
   const horizSections = [{value: '0'}];
   const stepHeight = props.stepHeight || containerHeight / noOfSections;
@@ -1702,9 +1353,6 @@ export const LineChart = (props: LineChartPropsType) => {
   // const yAxisThickness = props.yAxisThickness ?? 1;
   const xAxisTextNumberOfLines =
     props.xAxisTextNumberOfLines ?? AxesAndRulesDefaults.xAxisTextNumberOfLines;
-  const xAxisLabelsVerticalShift =
-    props.xAxisLabelsVerticalShift ??
-    AxesAndRulesDefaults.xAxisLabelsVerticalShift;
   const horizontalRulesStyle = props.horizontalRulesStyle;
   const showFractionalValues =
     props.showFractionalValues ?? AxesAndRulesDefaults.showFractionalValues;
@@ -1766,16 +1414,6 @@ export const LineChart = (props: LineChartPropsType) => {
   const activatePointersDelay =
     pointerConfig?.activatePointersDelay ??
     defaultPointerConfig.activatePointersDelay;
-  const initialPointerIndex =
-    pointerConfig?.initialPointerIndex ??
-    defaultPointerConfig.initialPointerIndex;
-  const initialPointerAppearDelay =
-    pointerConfig?.initialPointerAppearDelay ??
-    (isAnimated
-      ? animationDuration
-      : defaultPointerConfig.initialPointerAppearDelay);
-  const persistPointer =
-    pointerConfig?.persistPointer ?? defaultPointerConfig.persistPointer;
   const hidePointer1 =
     pointerConfig?.hidePointer1 ?? defaultPointerConfig.hidePointer1;
   const hidePointer2 =
@@ -1789,7 +1427,6 @@ export const LineChart = (props: LineChartPropsType) => {
   const hideSecondaryPointer =
     pointerConfig?.hideSecondaryPointer ??
     defaultPointerConfig.hideSecondaryPointer;
-  const pointerEvents = pointerConfig?.pointerEvents;
   const disableScroll =
     props.disableScroll ||
     (pointerConfig
@@ -1820,65 +1457,6 @@ export const LineChart = (props: LineChartPropsType) => {
   const containerHeightIncludingBelowXAxis =
     extendedContainerHeight + noOfSectionsBelowXAxis * stepHeight;
 
-  const lineGradient = props.lineGradient ?? LineDefaults.lineGradient;
-  const lineGradientDirection = props.lineGradientDirection ?? 'vertical';
-  const lineGradientStartColor =
-    props.lineGradientStartColor ?? LineDefaults.lineGradientStartColor;
-  const lineGradientEndColor =
-    props.lineGradientEndColor ?? LineDefaults.lineGradientEndColor;
-
-  const getPointerY = value =>
-    value
-      ? containerHeight -
-        (value * containerHeight) / maxValue -
-        (pointerRadius || pointerHeight / 2) +
-        10
-      : 0;
-
-  useEffect(() => {
-    if (initialPointerIndex !== -1) {
-      const item = (data0 ?? data)[initialPointerIndex];
-      const x =
-        initialSpacing +
-        spacing * initialPointerIndex -
-        (pointerRadius || pointerWidth / 2) -
-        1;
-      const y = getPointerY(item.value);
-      const y2 = getPointerY(data2?.[initialPointerIndex]?.value);
-      const y3 = getPointerY(data3?.[initialPointerIndex]?.value);
-      const y4 = getPointerY(data4?.[initialPointerIndex]?.value);
-      const y5 = getPointerY(data5?.[initialPointerIndex]?.value);
-
-      if (initialPointerAppearDelay) {
-        setTimeout(() => {
-          setPointerConfig(initialPointerIndex, item, x, y, y2, y3, y4, y5);
-        }, initialPointerAppearDelay);
-      } else {
-        setPointerConfig(initialPointerIndex, item, x, y, y2, y3, y4, y5);
-      }
-    }
-  }, []);
-
-  const setPointerConfig = (
-    initialPointerIndex,
-    item,
-    x,
-    y,
-    y2,
-    y3,
-    y4,
-    y5,
-  ) => {
-    setPointerIndex(initialPointerIndex);
-    setPointerItem(item);
-    setPointerX(x);
-    setPointerY(y);
-    setPointerY2(y2);
-    setPointerY3(y3);
-    setPointerY4(y4);
-    setPointerY5(y5);
-  };
-
   const renderLabel = (
     index: number,
     label: String,
@@ -1890,14 +1468,14 @@ export const LineChart = (props: LineChartPropsType) => {
         style={[
           {
             position: 'absolute',
-            bottom: 54 - xAxisTextNumberOfLines * 18,
+            bottom: 30,
             zIndex: 10,
             width: spacing + labelsExtraHeight,
             left:
               index === 0 && initialSpacing < 10
                 ? initialSpacing / 2 + spacing * index - spacing / 2 + 4
                 : initialSpacing / 2 + spacing * index - spacing / 2 - 10,
-            height: props.xAxisLabelsHeight ?? xAxisTextNumberOfLines * 18,
+            justifyContent: 'center',
           },
           rotateLabel && {transform: [{rotate: '60deg'}]},
         ]}>
@@ -1924,11 +1502,9 @@ export const LineChart = (props: LineChartPropsType) => {
       <Animated.View
         style={[
           {
-            height: rotateLabel
-              ? 40
-              : props.xAxisLabelsHeight ?? xAxisTextNumberOfLines * 18,
+            height: rotateLabel ? 40 : 20,
             position: 'absolute',
-            bottom: rotateLabel ? 10 : 54 - xAxisTextNumberOfLines * 18,
+            bottom: rotateLabel ? 10 : 30,
             zIndex: 10,
             width: spacing,
             left:
@@ -1978,6 +1554,7 @@ export const LineChart = (props: LineChartPropsType) => {
   });
 
   const onStripPress = (item, index) => {
+    console.log(item, index)
     setSelectedIndex(index);
     if (props.onFocus) {
       props.onFocus(item, index);
@@ -2068,7 +1645,6 @@ export const LineChart = (props: LineChartPropsType) => {
       const currentStripWidth = item.stripWidth ?? stripWidth;
       const currentStripOpacity = item.stripOpacity ?? stripOpacity;
       const currentStripColor = item.stripColor || stripColor;
-      const position = I18nManager.isRTL ? 'right' : 'left';
 
       return (
         <Fragment key={index}>
@@ -2085,6 +1661,7 @@ export const LineChart = (props: LineChartPropsType) => {
                   width={spacing}
                   height={containerHeight - 0}
                   fill={'none'}
+                  
                 />
               ) : (
                 <Rect
@@ -2101,22 +1678,22 @@ export const LineChart = (props: LineChartPropsType) => {
           {item.showStrip ||
           (focusEnabled && index === selectedIndex && showStripOnFocus) ? (
             <Rect
-              x={initialSpacing + spacing * index - currentStripWidth / 2 - 1}
+              x={initialSpacing + (spacing * index - dataPointsWidth / 2)}
               y={
                 currentStripHeight
                   ? containerHeight - currentStripHeight + 8
                   : containerHeight -
                     dataPointsHeight / 2 +
-                    14 -
+                    20 -
                     (item.value * containerHeight) / maxValue
               }
               width={currentStripWidth}
               height={
                 currentStripHeight ||
-                (item.value * containerHeight) / maxValue - 2
+                containerHeight - dataPointsHeight / 2 + 20
               }
               opacity={currentStripOpacity}
-              fill={stripColor}
+              fill={currentStripColor}
             />
           ) : null}
           {hideDataPoints ? null : (
@@ -2129,12 +1706,10 @@ export const LineChart = (props: LineChartPropsType) => {
                       height: dataPointsHeight,
                       width: dataPointsWidth,
                       top: getYOrSecondaryY(item.value),
-                      [position]:
-                        initialSpacing - dataPointsWidth + spacing * index,
-                      transform: [{scaleX: I18nManager.isRTL ? -1 : 1}],
+                      left: initialSpacing - dataPointsWidth + spacing * index,
                     },
                   ]}>
-                  {customDataPoint(item, index)}
+                  {customDataPoint()}
                 </View>
               ) : null}
               {dataPointsShape === 'rectangular' ? (
@@ -2273,6 +1848,32 @@ export const LineChart = (props: LineChartPropsType) => {
             }
           />
         );
+        return (
+          <Rect
+            key={index}
+            x={
+              getX(index) -
+              (item.verticalLineThickness ||
+                props.verticalLinesThickness ||
+                1) /
+                2
+            }
+            y={
+              item.verticalLineUptoDataPoint
+                ? getY(item.value)
+                : -xAxisThickness
+            }
+            width={item.verticalLineThickness || 10}
+            height={
+              item.verticalLineUptoDataPoint
+                ? (item.value * containerHeight) / maxValue - xAxisThickness
+                : extendedContainerHeight - xAxisThickness
+            }
+            fill={
+              item.verticalLineColor || props.verticalLinesColor || 'lightgray'
+            }
+          />
+        );
       }
       return null;
     });
@@ -2383,54 +1984,7 @@ export const LineChart = (props: LineChartPropsType) => {
       pointerConfig,
       pointerLabelComponent,
       secondaryPointerItem,
-      scrollX,
-      pointerEvents,
     });
-  };
-
-  const getLineGradientComponent = () => {
-    return props.lineGradientComponent ? (
-      props.lineGradientComponent()
-    ) : (
-      <LinearGradient
-        id="lineGradient"
-        x1="0"
-        y1="0"
-        x2={lineGradientDirection === 'horizontal' ? '1' : '0'}
-        y2={lineGradientDirection === 'vertical' ? '1' : '0'}>
-        <Stop offset="0" stopColor={lineGradientStartColor} />
-        <Stop offset="1" stopColor={lineGradientEndColor} />
-      </LinearGradient>
-    );
-  };
-
-  const getAreaGradientComponent = (
-    startFillColor: string,
-    endFillColor: string,
-    startOpacity: number,
-    endOpacity: number,
-  ) => {
-    return props.areaGradientComponent ? (
-      props.areaGradientComponent()
-    ) : (
-      <LinearGradient
-        id="Gradient"
-        x1="0"
-        y1="0"
-        x2={gradientDirection === 'horizontal' ? '1' : '0'}
-        y2={gradientDirection === 'vertical' ? '1' : '0'}>
-        <Stop
-          offset="0"
-          stopColor={startFillColor}
-          stopOpacity={startOpacity.toString()}
-        />
-        <Stop
-          offset="1"
-          stopColor={endFillColor}
-          stopOpacity={endOpacity.toString()}
-        />
-      </LinearGradient>
-    );
   };
 
   const lineSvgComponent = (
@@ -2449,97 +2003,53 @@ export const LineChart = (props: LineChartPropsType) => {
     arrowStrokeColor,
     arrowFillColor,
   ) => {
-    if (!points) return null;
-    const isCurved = points.includes('C');
-    let ar: [any] = [{}];
-    if (points.includes(RANGE_ENTER)) {
-      ar = getRegionPathObjects(
-        points,
-        color,
-        currentLineThickness,
-        thickness,
-        strokeDashArray,
-        isCurved,
-        RANGE_ENTER,
-        STOP,
-        RANGE_EXIT,
-      );
-    } else if (points.includes(SEGMENT_START)) {
-      ar = getSegmentedPathObjects(
-        points,
-        color,
-        currentLineThickness,
-        thickness,
-        strokeDashArray,
-        isCurved,
-        SEGMENT_START,
-        SEGMENT_END,
-      );
-    }
-    const lineSvgPropsOuter: LineSvgProps = {
-      d: points,
-      fill: 'none',
-      stroke: lineGradient
-        ? props.lineGradientId
-          ? `url(#${props.lineGradientId})`
-          : `url(#lineGradient)`
-        : color,
-      strokeWidth: currentLineThickness || thickness,
-    };
-    if (
-      strokeDashArray &&
-      strokeDashArray.length === 2 &&
-      typeof strokeDashArray[0] === 'number' &&
-      typeof strokeDashArray[1] === 'number'
-    ) {
-      lineSvgPropsOuter.strokeDasharray = strokeDashArray;
-    }
     return (
       <Svg>
-        {lineGradient && getLineGradientComponent()}
-        {points.includes(SEGMENT_START) || points.includes(RANGE_ENTER) ? (
-          ar.map((item, index) => {
-            const lineSvgProps: LineSvgProps = {
-              d: item.d,
-              fill: 'none',
-              stroke: lineGradient
-                ? props.lineGradientId
-                  ? `url(#${props.lineGradientId})`
-                  : `url(#lineGradient)`
-                : item.color,
-              strokeWidth: item.strokeWidth,
-            };
-            if (
-              item.strokeDashArray &&
-              item.strokeDashArray.length === 2 &&
-              typeof item.strokeDashArray[0] === 'number' &&
-              typeof item.strokeDashArray[1] === 'number'
-            ) {
-              lineSvgProps.strokeDasharray = item.strokeDashArray;
-            }
-            return <Path key={index} {...lineSvgProps} />;
-          })
+        {strokeDashArray &&
+        strokeDashArray.length === 2 &&
+        typeof strokeDashArray[0] === 'number' &&
+        typeof strokeDashArray[1] === 'number' ? (
+          <Path
+            d={points}
+            fill="none"
+            stroke={color}
+            strokeWidth={currentLineThickness || thickness}
+            strokeDasharray={strokeDashArray}
+          />
         ) : (
-          <Path {...lineSvgPropsOuter} />
+          <Path
+            d={points}
+            fill="none"
+            stroke={color}
+            strokeWidth={currentLineThickness || thickness}
+          />
         )}
 
         {/***********************      For Area Chart        ************/}
 
-        {atLeastOneAreaChart &&
-          getAreaGradientComponent(
-            startFillColor,
-            endFillColor,
-            startOpacity,
-            endOpacity,
-          )}
+        {atLeastOneAreaChart && (
+          <LinearGradient
+            id="Gradient"
+            x1="0"
+            y1="0"
+            x2={gradientDirection === 'horizontal' ? '1' : '0'}
+            y2={gradientDirection === 'vertical' ? '1' : '0'}>
+            <Stop
+              offset="0"
+              stopColor={startFillColor}
+              stopOpacity={startOpacity.toString()}
+            />
+            <Stop
+              offset="1"
+              stopColor={endFillColor}
+              stopOpacity={endOpacity.toString()}
+            />
+          </LinearGradient>
+        )}
         {atLeastOneAreaChart && (
           <Path
             d={fillPoints}
-            fill={
-              props.areaGradientId
-                ? `url(#${props.areaGradientId})`
-                : `url(#Gradient)`
-            }
+            fill="url(#Gradient)"
             stroke={'transparent'}
             strokeWidth={currentLineThickness || thickness}
           />
@@ -2552,30 +2062,6 @@ export const LineChart = (props: LineChartPropsType) => {
         {renderSpecificVerticalLines(data3)}
         {renderSpecificVerticalLines(data4)}
         {renderSpecificVerticalLines(data5)}
-
-        {dataSet?.map(set => renderSpecificVerticalLines(set?.data)) ?? null}
-        {dataSet?.map(set => {
-          const setData = set.data.map(item => {
-            item.value = item.value - (props.yAxisOffset ?? 0);
-            return item;
-          });
-          return renderDataPoints(
-            set.hideDataPoints ?? hideDataPoints1,
-            setData,
-            set.data,
-            set.dataPointsShape ?? dataPointsShape1,
-            set.dataPointsWidth ?? dataPointsWidth1,
-            set.dataPointsHeight ?? dataPointsHeight1,
-            set.dataPointsColor ?? dataPointsColor1,
-            set.dataPointsRadius ?? dataPointsRadius1,
-            set.textColor ?? textColor1,
-            set.textFontSize ?? textFontSize1,
-            set.startIndex ?? 0,
-            set.endIndex ?? set.data.length - 1,
-            false,
-            showValuesAsDataPointsText,
-          );
-        }) ?? null}
 
         {/***  !!! Here it's done thrice intentionally, trying to make it to only 1 breaks things !!!  ***/}
         {renderDataPoints(
@@ -2704,11 +2190,9 @@ export const LineChart = (props: LineChartPropsType) => {
     arrowStrokeWidth,
     arrowStrokeColor,
     arrowFillColor,
-    key?: number,
   ) => {
     return (
       <View
-        key={key ?? 0}
         onStartShouldSetResponder={evt => (pointerConfig ? true : false)}
         onMoveShouldSetResponder={evt => (pointerConfig ? true : false)}
         onResponderGrant={evt => {
@@ -2725,17 +2209,17 @@ export const LineChart = (props: LineChartPropsType) => {
             return;
           let factor = (x - initialSpacing) / spacing;
           factor = Math.round(factor);
-          factor = Math.min(factor, (data0 ?? data).length - 1);
+          factor = Math.min(factor, data.length - 1);
           factor = Math.max(factor, 0);
           let z =
             initialSpacing +
             spacing * factor -
             (pointerRadius || pointerWidth / 2) -
-            1;
+            3;
           setPointerX(z);
           setPointerIndex(factor);
           let item, y;
-          item = (data0 ?? data)[factor];
+          item = data[factor];
           y =
             containerHeight -
             (item.value * containerHeight) / maxValue -
@@ -2822,17 +2306,17 @@ export const LineChart = (props: LineChartPropsType) => {
             return;
           let factor = (x - initialSpacing) / spacing;
           factor = Math.round(factor);
-          factor = Math.min(factor, (data0 ?? data).length - 1);
+          factor = Math.min(factor, data.length - 1);
           factor = Math.max(factor, 0);
           let z =
             initialSpacing +
             spacing * factor -
             (pointerRadius || pointerWidth / 2) -
-            1;
+            3;
           let item, y;
           setPointerX(z);
           setPointerIndex(factor);
-          item = (data0 ?? data)[factor];
+          item = data[factor];
           y =
             containerHeight -
             (item.value * containerHeight) / maxValue -
@@ -2909,8 +2393,7 @@ export const LineChart = (props: LineChartPropsType) => {
           setResponderStartTime(0);
           setPointerIndex(-1);
           setResponderActive(false);
-          if (!persistPointer)
-            setTimeout(() => setPointerX(0), pointerVanishDelay);
+          setTimeout(() => setPointerX(0), pointerVanishDelay);
         }}
         onResponderTerminationRequest={evt => false}
         // onResponderTerminate={evt => {
@@ -2928,12 +2411,10 @@ export const LineChart = (props: LineChartPropsType) => {
             (props.overflowBottom ?? dataPointsRadius1),
           bottom:
             60 +
-            xAxisLabelsVerticalShift +
             labelsExtraHeight -
             (props.overflowBottom ?? dataPointsRadius1),
-          zIndex: zIndex,
-          transform: [{scaleX: I18nManager.isRTL ? -1 : 1}],
           width: totalWidth,
+          zIndex: zIndex,
         }}>
         {lineSvgComponent(
           points,
@@ -2972,11 +2453,10 @@ export const LineChart = (props: LineChartPropsType) => {
     arrowStrokeWidth,
     arrowStrokeColor,
     arrowFillColor,
-    key?: number,
   ) => {
+    // console.log('animatedWidth is-------->', animatedWidth);
     return (
       <Animated.View
-        key={key ?? 0}
         onStartShouldSetResponder={evt => (pointerConfig ? true : false)}
         onMoveShouldSetResponder={evt => (pointerConfig ? true : false)}
         onResponderGrant={evt => {
@@ -2993,17 +2473,17 @@ export const LineChart = (props: LineChartPropsType) => {
             return;
           let factor = (x - initialSpacing) / spacing;
           factor = Math.round(factor);
-          factor = Math.min(factor, (data0 ?? data).length - 1);
+          factor = Math.min(factor, data.length - 1);
           factor = Math.max(factor, 0);
           let z =
             initialSpacing +
             spacing * factor -
             (pointerRadius || pointerWidth / 2) -
-            1;
+            3;
           setPointerX(z);
           setPointerIndex(factor);
           let item, y;
-          item = (data0 ?? data)[factor];
+          item = data[factor];
           y =
             containerHeight -
             (item.value * containerHeight) / maxValue -
@@ -3090,17 +2570,17 @@ export const LineChart = (props: LineChartPropsType) => {
             return;
           let factor = (x - initialSpacing) / spacing;
           factor = Math.round(factor);
-          factor = Math.min(factor, (data0 ?? data).length - 1);
+          factor = Math.min(factor, data.length - 1);
           factor = Math.max(factor, 0);
           let z =
             initialSpacing +
             spacing * factor -
             (pointerRadius || pointerWidth / 2) -
-            1;
+            3;
           let item, y;
           setPointerX(z);
           setPointerIndex(factor);
-          item = (data0 ?? data)[factor];
+          item = data[factor];
           y =
             containerHeight -
             (item.value * containerHeight) / maxValue -
@@ -3177,8 +2657,7 @@ export const LineChart = (props: LineChartPropsType) => {
           setResponderStartTime(0);
           setPointerIndex(-1);
           setResponderActive(false);
-          if (!persistPointer)
-            setTimeout(() => setPointerX(0), pointerVanishDelay);
+          setTimeout(() => setPointerX(0), pointerVanishDelay);
         }}
         onResponderTerminationRequest={evt => false}
         // onResponderTerminate={evt => {
@@ -3196,12 +2675,11 @@ export const LineChart = (props: LineChartPropsType) => {
             (props.overflowBottom ?? dataPointsRadius1),
           bottom:
             60 +
-            xAxisLabelsVerticalShift +
             labelsExtraHeight -
             (props.overflowBottom ?? dataPointsRadius1),
-          zIndex: zIndex,
-          transform: [{scaleX: I18nManager.isRTL ? -1 : 1}],
           width: animatedWidth,
+          zIndex: zIndex,
+          // backgroundColor: 'wheat',
         }}>
         {lineSvgComponent(
           points,
@@ -3238,52 +2716,7 @@ export const LineChart = (props: LineChartPropsType) => {
   const renderChartContent = () => {
     return (
       <>
-        {dataSet
-          ? pointsFromSet.length
-            ? dataSet.map((set, index) => {
-                if (isAnimated) {
-                  return renderAnimatedLine(
-                    set.zIndex ?? zIndex1,
-                    pointsFromSet[index],
-                    animatedWidth,
-                    set.thickness ?? thickness1,
-                    set.color ?? color1,
-                    fillPointsFromSet[index],
-                    set.startFillColor ?? startFillColor1,
-                    set.endFillColor ?? endFillColor1,
-                    set.startOpacity ?? startOpacity1,
-                    set.endOpacity ?? endOpacity1,
-                    set.strokeDashArray ?? strokeDashArray1,
-                    set.showArrow || props.showArrows,
-                    arrowPointsFromSet[index],
-                    arrowStrokeWidthsFromSet[index],
-                    arrowStrokeColorsFromSet[index],
-                    arrowFillColorsFromSet[index],
-                    index,
-                  );
-                } else {
-                  return renderLine(
-                    set.zIndex ?? zIndex1,
-                    pointsFromSet[index],
-                    set.thickness ?? thickness1,
-                    set.color ?? color1,
-                    fillPointsFromSet[index],
-                    set.startFillColor ?? startFillColor1,
-                    set.endFillColor ?? endFillColor1,
-                    set.startOpacity ?? startOpacity1,
-                    set.endOpacity ?? endOpacity1,
-                    set.strokeDashArray ?? strokeDashArray1,
-                    set.showArrow || props.showArrows,
-                    arrowPointsFromSet[index],
-                    arrowStrokeWidthsFromSet[index],
-                    arrowStrokeColorsFromSet[index],
-                    arrowFillColorsFromSet[index],
-                    index,
-                  );
-                }
-              })
-            : null
-          : isAnimated
+        {isAnimated
           ? renderAnimatedLine(
               zIndex1,
               points,
@@ -3301,7 +2734,6 @@ export const LineChart = (props: LineChartPropsType) => {
               arrowStrokeWidth1,
               arrowStrokeColor1,
               arrowFillColor1,
-              0,
             )
           : renderLine(
               zIndex1,
@@ -3319,7 +2751,6 @@ export const LineChart = (props: LineChartPropsType) => {
               arrowStrokeWidth1,
               arrowStrokeColor1,
               arrowFillColor1,
-              0,
             )}
         {secondaryPoints
           ? isAnimated
@@ -3340,7 +2771,6 @@ export const LineChart = (props: LineChartPropsType) => {
                 secondaryLineConfig.arrowConfig?.strokeWidth,
                 secondaryLineConfig.arrowConfig?.strokeColor,
                 secondaryLineConfig.arrowConfig?.fillColor,
-                6,
               )
             : renderLine(
                 secondaryLineConfig.zIndex,
@@ -3358,7 +2788,6 @@ export const LineChart = (props: LineChartPropsType) => {
                 secondaryLineConfig.arrowConfig?.strokeWidth,
                 secondaryLineConfig.arrowConfig?.strokeColor,
                 secondaryLineConfig.arrowConfig?.fillColor,
-                6,
               )
           : null}
         {points2
@@ -3380,7 +2809,6 @@ export const LineChart = (props: LineChartPropsType) => {
                 arrowStrokeWidth2,
                 arrowStrokeColor2,
                 arrowFillColor2,
-                1,
               )
             : renderLine(
                 zIndex2,
@@ -3398,7 +2826,6 @@ export const LineChart = (props: LineChartPropsType) => {
                 arrowStrokeWidth2,
                 arrowStrokeColor2,
                 arrowFillColor2,
-                1,
               )
           : null}
         {points3
@@ -3420,7 +2847,6 @@ export const LineChart = (props: LineChartPropsType) => {
                 arrowStrokeWidth3,
                 arrowStrokeColor3,
                 arrowFillColor3,
-                2,
               )
             : renderLine(
                 zIndex3,
@@ -3438,7 +2864,6 @@ export const LineChart = (props: LineChartPropsType) => {
                 arrowStrokeWidth3,
                 arrowStrokeColor3,
                 arrowFillColor3,
-                2,
               )
           : null}
         {points4
@@ -3460,7 +2885,6 @@ export const LineChart = (props: LineChartPropsType) => {
                 arrowStrokeWidth4,
                 arrowStrokeColor4,
                 arrowFillColor4,
-                3,
               )
             : renderLine(
                 zIndex4,
@@ -3478,7 +2902,6 @@ export const LineChart = (props: LineChartPropsType) => {
                 arrowStrokeWidth4,
                 arrowStrokeColor4,
                 arrowFillColor4,
-                3,
               )
           : null}
         {points5
@@ -3500,7 +2923,6 @@ export const LineChart = (props: LineChartPropsType) => {
                 arrowStrokeWidth5,
                 arrowStrokeColor5,
                 arrowFillColor5,
-                4,
               )
             : renderLine(
                 zIndex5,
@@ -3518,37 +2940,31 @@ export const LineChart = (props: LineChartPropsType) => {
                 arrowStrokeWidth5,
                 arrowStrokeColor5,
                 arrowFillColor5,
-                4,
               )
           : null}
-        {pointerX > 0 ? (
+        {pointerX >= -12 ? (
           <View
-            pointerEvents={pointerEvents ?? 'none'}
+            pointerEvents="none"
             style={{
               position: 'absolute',
               height:
                 extendedContainerHeight + noOfSectionsBelowXAxis * stepHeight,
-              bottom: 58 + labelsExtraHeight + xAxisLabelsVerticalShift,
-              // width: totalWidth,
-              zIndex: 20,
+              bottom: 60 + labelsExtraHeight,
+              width: totalWidth,
+              zIndex: 1000,
             }}>
             {!stripOverPointer && renderStripAndLabel()}
-            {dataSet ? (
-              renderPointer(1)
-            ) : (
-              <>
-                {renderPointer(1)}
-                {points2 ? renderPointer(2) : null}
-                {points3 ? renderPointer(3) : null}
-                {points4 ? renderPointer(4) : null}
-                {points5 ? renderPointer(5) : null}
-                {secondaryPoints ? renderPointer(6) : null}
-                {stripOverPointer && renderStripAndLabel()}
-              </>
-            )}
+            {renderPointer(1)}
+            {points2 ? renderPointer(2) : null}
+            {points3 ? renderPointer(3) : null}
+            {points4 ? renderPointer(4) : null}
+            {points5 ? renderPointer(5) : null}
+            {secondaryPoints ? renderPointer(6) : null}
+            {stripOverPointer && renderStripAndLabel()}
           </View>
-        ) : null}
-        {(data0 ?? data).map((item: itemType, index: number) => {
+       ) : null}
+        {data.map((item: itemType, index: number) => {
+          // console.log('item', item)
           return (
             <View key={index}>
               {isAnimated
@@ -3592,7 +3008,7 @@ export const LineChart = (props: LineChartPropsType) => {
     scrollRef,
     yAxisAtTop,
     initialSpacing,
-    data: data0 ?? data,
+    data,
     stackData: undefined, // Not needed but passing this prop to maintain consistency (between LineChart and BarChart props)
     secondaryData: secondaryData,
     barWidth: 0, // Not needed but passing this prop to maintain consistency (between LineChart and BarChart props)
@@ -3608,15 +3024,12 @@ export const LineChart = (props: LineChartPropsType) => {
     setSelectedIndex,
     spacing,
     showLine: false,
-    lineConfig: null, // Not needed but passing this prop to maintain consistency (between LineChart and BarChart props)
-    lineConfig2: null, // Not needed but passing this prop to maintain consistency (between LineChart and BarChart props)
+    lineConfig: null,
     maxValue,
     lineData: [], // Not needed but passing this prop to maintain consistency (between LineChart and BarChart props)
-    lineData2: [], // Not needed but passing this prop to maintain consistency (between LineChart and BarChart props)
     animatedWidth,
     lineBehindBars: false,
     points,
-    points2: '', // Not needed but passing this prop to maintain consistency (between LineChart and BarChart props)
     arrowPoints: [], // Not needed but passing this prop to maintain consistency (between LineChart and BarChart props)
     renderChartContent,
     remainingScrollViewProps,
