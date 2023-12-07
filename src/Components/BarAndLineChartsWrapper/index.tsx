@@ -432,7 +432,7 @@ const BarAndLineChartsWrapper = (props: BarAndLineChartsWrapperTypes) => {
                     key={index + '' + item.value}
                     style={{
                       position: 'absolute',
-                      height: item?.label?xAxisIndicesHeight+3:xAxisIndicesHeight,
+                      height: item?.label?xAxisIndicesHeight+4:xAxisIndicesHeight,
                       width: xAxisIndicesWidth,
                       backgroundColor: xAxisIndicesColor,
                       bottom: 60 - xAxisIndicesHeight / 2,
